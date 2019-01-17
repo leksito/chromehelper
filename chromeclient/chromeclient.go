@@ -20,10 +20,10 @@ type FetchEnableParams struct {
 }
 
 type FetchFulfillRequestParams struct {
-	RequestId       string           `json:"requestId"`
-	ResponseCode    int              `json:"responseCode"`
-	ResponseHeaders []ResponseHeader `json:"responseHeaders"`
-	Body            string           `json:"body"`
+	RequestId       string              `json:"requestId"`
+	ResponseCode    int                 `json:"responseCode"`
+	ResponseHeaders []map[string]string `json:"responseHeaders"`
+	Body            string              `json:"body"`
 }
 
 type RequestPattern struct {
@@ -71,12 +71,6 @@ type RequestPausedResponse struct {
 	} `json:"params"`
 }
 
-
-type ResponseHeader struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
 type ChromeClient struct {
 	Ws *websocket.Conn
 	ID int
@@ -115,7 +109,7 @@ func (c *ChromeClient) FetchEnable() error {
 	return nil
 }
 
-func (c *ChromeClient) FulfillRequest(requestId string, code int, headers []ResponseHeader, body []byte) error {
+func (c *ChromeClient) FulfillRequest(requestId string, code int, headers []map[string]string, body []byte) error {
 	type FetchFulfillRequestMessage struct {
 		Message
 		FetchFulfillRequestParams

@@ -14,7 +14,7 @@ import "crypto/tls"
 import "os"
 import "chromehelper/chromeclient"
 
-func doRequest(request *http.Request, client *http.Client) (int, []chromeclient.ResponseHeader, []byte, error) {
+func doRequest(request *http.Request, client *http.Client) (int, []map[string]string, []byte, error) {
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -24,12 +24,13 @@ func doRequest(request *http.Request, client *http.Client) (int, []chromeclient.
 
 	code := response.StatusCode
 
-	var responseHeaders []chromeclient.ResponseHeader
+	// var responseHeaders []chromeclient.ResponseHeader
+	var responseHeaders []map[string]string
 	for name, values := range response.Header {
 		for _, value := range values {
-			responseHeaders = append(responseHeaders, chromeclient.ResponseHeader{
-				Name:  name,
-				Value: value,
+			responseHeaders = append(responseHeaders, map[string]string{
+				"name":  name,
+				"value": value,
 			})
 		}
 	}
