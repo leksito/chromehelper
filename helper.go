@@ -9,41 +9,23 @@ import "log"
 import "net/http"
 import "net/url"
 import "strings"
-import "bytes"
 import "compress/gzip"
 import "crypto/tls"
 import "os"
 import "chromehelper/chromeclient"
 
-func doRequest(request chromeclient.ChromeRequest, client *http.Client) (int, []chromeclient.ResponseHeader, []byte, error) {
-	url, err := url.Parse(request.URL)
-	if err != nil {
-		log.Println(err)
-	}
+func doRequest(request *http.Request, client *http.Client) (int, []chromeclient.ResponseHeader, []byte, error) {
 
-	request.Headers["Accept-Encoding"] = "gzip"
-	request.Headers["Accept"] = "*/*"
-
-	req, err := http.NewRequest(request.Method, url.String(),
-		bytes.NewBuffer([]byte(request.PostData)))
-	if err != nil {
-		log.Println(err)
-	}
-
-	for key, value := range request.Headers {
-		req.Header.Add(key, value)
-	}
-
-	resp, err := client.Do(req)
+	response, err := client.Do(request)
 	if err != nil {
 		return 0, nil, []byte{}, err
 	}
-	defer resp.Body.Close()
+	defer response.Body.Close()
 
-	code := resp.StatusCode
+	code := response.StatusCode
 
 	var responseHeaders []chromeclient.ResponseHeader
-	for name, values := range resp.Header {
+	for name, values := range response.Header {
 		for _, value := range values {
 			responseHeaders = append(responseHeaders, chromeclient.ResponseHeader{
 				Name:  name,
@@ -53,26 +35,27 @@ func doRequest(request chromeclient.ChromeRequest, client *http.Client) (int, []
 	}
 
 	var reader io.ReadCloser
-	switch resp.Header.Get("Content-Encoding") {
+	switch response.Header.Get("Content-Encoding") {
 	case "gzip":
-		reader, err = gzip.NewReader(resp.Body)
+		reader, err = gzip.NewReader(response.Body)
 		defer reader.Close()
 	default:
-		reader = resp.Body
+		reader = response.Body
 	}
 
 	body, err := ioutil.ReadAll(reader)
 
-	dump, _ := httputil.DumpRequest(req, true)
+	dump, _ := httputil.DumpRequest(request, true)
 	fmt.Println(string(dump))
-	dump, _ = httputil.DumpResponse(resp, false)
+	dump, _ = httputil.DumpResponse(response, false)
 	fmt.Println(string(dump))
 
 	return code, responseHeaders, body, nil
 }
 
 func handleRequest(c chromeclient.ChromeClient, id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) {
-	code, headers, body, err := doRequest(request, client)
+    req, _ := request.ToHTTPRequest()
+	code, headers, body, err := doRequest(req, client)
 	if err != nil {
 		log.Println("request failed")
 		log.Println(err)
@@ -153,11 +136,7 @@ func main() {
 
 	for {
 		_, response_json, err := chromeClient.Ws.ReadMessage()
-		if err != nil {
-			continue
-		}
-
-		if !strings.Contains(string(response_json), "Fetch.requestPaused") {
+		if err != nil || !strings.Contains(string(response_json), "Fetch.requestPaused") {
 			continue
 		}
 

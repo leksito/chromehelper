@@ -5,15 +5,9 @@ import "github.com/fasthttp/websocket"
 import "io/ioutil"
 import "net/http"
 import "encoding/base64"
+import "net/url"
+import "bytes"
 
-type Version struct {
-	Browser              string `json:"Browser"`
-	ProtocolVersion      string `json:"Protocol-Version"`
-	UserAgent            string `json:"User-Agent"`
-	V8Version            string `json:"V8-Version"`
-	WebKitVersion        string `json:"WebKit-Version"`
-	WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
-}
 
 type Message struct {
 	ID     int         `json:"id"`
@@ -46,6 +40,27 @@ type ChromeRequest struct {
 	ReferrerPolicy  string            `json:"referrerPolicy"`
 }
 
+func (c *ChromeRequest) ToHTTPRequest() (*http.Request, error) {
+    url, err := url.Parse(c.URL)
+    if err != nil {
+        return &http.Request{}, err
+    }
+    
+	c.Headers["Accept-Encoding"] = "gzip"
+	c.Headers["Accept"] = "*/*"
+
+    req, err := http.NewRequest(c.Method, url.String(),
+        bytes.NewBuffer([]byte(c.PostData)))
+    if err != nil {
+        return &http.Request{}, err
+    }
+
+    for key, value := range c.Headers {
+        req.Header.Add(key, value)
+    }
+    return req, nil
+}
+
 type RequestPausedResponse struct {
 	Method string `json:"method"`
 	Params struct {
@@ -56,10 +71,6 @@ type RequestPausedResponse struct {
 	} `json:"params"`
 }
 
-type ChromeResponse struct {
-	ID     int    `json:"id"`
-	Result string `json:"result"`
-}
 
 type ResponseHeader struct {
 	Name  string `json:"name"`
@@ -141,9 +152,9 @@ func NewChromeClient(remoteDebuggingUrl string) (ChromeClient, error) {
 
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
 
-	version := Version{}
+	var version map[string]string
 	json.Unmarshal(bodyBytes, &version)
-	ws_url := version.WebSocketDebuggerURL
+	ws_url := version["webSocketDebuggerUrl"]
 
 	dialer := websocket.Dialer{
 		WriteBufferSize: 33554432, // this is fucking bug in gorilla/websocket,
