@@ -13,6 +13,7 @@ import "compress/gzip"
 import "crypto/tls"
 import "os"
 import "chromehelper/chromeclient"
+import "encoding/base64"
 
 func doRequest(request *http.Request, client *http.Client) (int, []map[string]string, []byte, error) {
 
@@ -54,22 +55,22 @@ func doRequest(request *http.Request, client *http.Client) (int, []map[string]st
 	return code, responseHeaders, body, nil
 }
 
-func handleRequest(c chromeclient.ChromeClient, id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) {
+func handleRequest(id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) (chromeclient.FetchFulfillRequestParams, error) {
     req, _ := request.ToHTTPRequest()
 	code, headers, body, err := doRequest(req, client)
 	if err != nil {
-		log.Println("request failed")
-		log.Println(err)
-		return
+		return chromeclient.FetchFulfillRequestParams{}, err
 	}
-
-	if err = c.FulfillRequest(requestId, code, headers, body); err != nil {
-		log.Println(err)
-	}
-
+    params := chromeclient.FetchFulfillRequestParams{
+        RequestId:       requestId,
+        ResponseCode:    code,
+        ResponseHeaders: headers,
+        Body:            base64.StdEncoding.EncodeToString(body),
+    }
+    return params, err
 }
 
-func Poller(in <-chan chromeclient.RequestPausedResponse, chromeClient chromeclient.ChromeClient) {
+func Poller(in <-chan chromeclient.RequestPausedResponse, out chan<- interface{}, chromeClient chromeclient.ChromeClient) {
 	clients := make(map[string]*http.Client)
 	for response := range in {
 		chromeClient.ID += 1
@@ -91,8 +92,26 @@ func Poller(in <-chan chromeclient.RequestPausedResponse, chromeClient chromecli
 			client = createHttpClient(proxy)
 			clients[proxy] = client
 		}
-		go handleRequest(chromeClient, chromeClient.ID, response.Params.RequestID, request, client)
+		go func(out chan<- interface{}) {
+            params, err := handleRequest(chromeClient.ID, response.Params.RequestID, request, client)
+            if err != nil {
+                log.Println("Send err")
+                log.Println(err)
+            } else {
+                out <- params
+            }
+
+        }(out)
 	}
+}
+
+func Sender(out <-chan interface{}, chromeClient chromeclient.ChromeClient) {
+    for params := range out {
+        if err := chromeClient.Send(params); err != nil {
+            log.Println("Send err2:")
+            log.Println(err)
+        }
+    }
 }
 
 func createHttpClient(proxyStr string) *http.Client {
@@ -133,7 +152,11 @@ func main() {
 	pending := make(chan chromeclient.RequestPausedResponse)
 	defer close(pending)
 
-	go Poller(pending, chromeClient)
+    complete := make(chan interface{})
+    defer close(complete)
+
+	go Poller(pending, complete, chromeClient)
+    go Sender(complete, chromeClient)
 
 	for {
 		_, response_json, err := chromeClient.Ws.ReadMessage()
@@ -146,4 +169,5 @@ func main() {
 
 		pending <- response
 	}
+
 }

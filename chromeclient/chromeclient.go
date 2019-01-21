@@ -109,11 +109,22 @@ func (c *ChromeClient) FetchEnable() error {
 	return nil
 }
 
-func (c *ChromeClient) FulfillRequest(requestId string, code int, headers []map[string]string, body []byte) error {
-	type FetchFulfillRequestMessage struct {
-		Message
-		FetchFulfillRequestParams
+func (c *ChromeClient) Send(params interface{}) error {
+	c.ID += 1
+	msg := Message{
+		ID:     c.ID,
+		Method: "Fetch.fulfillRequest",
+		Params: params,
 	}
+
+	if err := c.Ws.WriteJSON(msg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ChromeClient) FulfillRequest(requestId string, code int, headers []map[string]string, body []byte) error {
 	c.ID += 1
 	msg := Message{
 		ID:     c.ID,
@@ -165,4 +176,5 @@ func NewChromeClient(remoteDebuggingUrl string) (ChromeClient, error) {
 		ID: 1000,
 	}
 	return chromeClient, nil
+    
 }
