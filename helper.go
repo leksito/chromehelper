@@ -25,7 +25,6 @@ func doRequest(request *http.Request, client *http.Client) (int, []map[string]st
 
 	code := response.StatusCode
 
-	// var responseHeaders []chromeclient.ResponseHeader
 	var responseHeaders []map[string]string
 	for name, values := range response.Header {
 		for _, value := range values {
@@ -92,23 +91,21 @@ func Poller(in <-chan chromeclient.RequestPausedResponse, out chan<- interface{}
 			client = createHttpClient(proxy)
 			clients[proxy] = client
 		}
-		go func(out chan<- interface{}) {
-            params, err := handleRequest(chromeClient.ID, response.Params.RequestID, request, client)
+		go func(out chan<- interface{}, id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) {
+            params, err := handleRequest(id, requestId, request, client)
             if err != nil {
-                log.Println("Send err")
                 log.Println(err)
             } else {
                 out <- params
             }
 
-        }(out)
+        }(out, chromeClient.ID, response.Params.RequestID, request, client)
 	}
 }
 
 func Sender(out <-chan interface{}, chromeClient chromeclient.ChromeClient) {
     for params := range out {
         if err := chromeClient.Send(params); err != nil {
-            log.Println("Send err2:")
             log.Println(err)
         }
     }
