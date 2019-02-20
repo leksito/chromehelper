@@ -7,14 +7,13 @@ import "io/ioutil"
 import "net/http/httputil"
 import "net/http"
 import "log"
-import "net/http"
 import "net/url"
 import "strings"
 import "compress/gzip"
-import "crypto/tls"
+// import "crypto/tls"
 import "os"
 import "chromehelper/chromeclient"
-import "encoding/base64"
+// import "encoding/base65"
 
 func doRequest(request *http.Request, client *http.Client) (int, []map[string]string, []byte, error) {
 
@@ -59,10 +58,10 @@ func Poller(in <-chan chromeclient.RequestPausedResponse, out chan<- interface{}
 	client := newHttpClient()
 	for response := range in {
 		chromeClient.ID += 1
-		request := response.Params.Request.ToHTTPRequest()
+		request, _ := response.Params.Request.ToHTTPRequest()
 
-		go func(out chan<- interface{}, id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) {
-			code, headers, body, err := doRequest(req, client)
+		go func(out chan<- interface{}, id int, requestId string, request *http.Request, client *http.Client) {
+			code, headers, body, err := doRequest(request, client)
 			if err != nil {
 				log.Println(err)
 			}
@@ -79,14 +78,14 @@ func Sender(out <-chan interface{}, chromeClient chromeclient.ChromeClient) {
 	}
 }
 
-func ProxyFunc(request *httml.Request) (*url.URL, error) {
-	proxyStr, ok := request.Headers["__proxy__"]
+func ProxyFunc(request *http.Request) (*url.URL, error) {
+	proxyStr, ok := request.Header["__proxy__"]
 	if ok == false {
 		return nil, nil
 	} else {
-		delete(request.Headers, "__proxy__")
+		delete(request.Header, "__proxy__")
 	}
-	proxyULR, err := url.Parse(proxyStr)
+	proxyURL, err := url.Parse(proxyStr[0])
 	if err != nil {
 		log.Println(err)
 	}
@@ -94,17 +93,15 @@ func ProxyFunc(request *httml.Request) (*url.URL, error) {
 }
 
 func newHttpClient() *http.Client {
-	client := &http.Client{
+	return &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			// handle redirects, if there is it then do not do following location
 			return http.ErrUseLastResponse
 		},
+        Transport: &http.Transport {
+            Proxy: ProxyFunc,
+        },
 	}
-
-	transport := &http.Transport{
-		Proxy: ProxyFunc,
-	}
-
 }
 
 func main() {
