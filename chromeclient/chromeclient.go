@@ -8,7 +8,6 @@ import "encoding/base64"
 import "net/url"
 import "bytes"
 
-
 type Message struct {
 	ID     int         `json:"id"`
 	Method string      `json:"method"`
@@ -26,6 +25,15 @@ type FetchFulfillRequestParams struct {
 	Body            string              `json:"body"`
 }
 
+func NewFetchFulfillRequestParams(requestId string, code int, headers []map[string]string, body []byte) FetchFulfillRequestParams {
+	return FetchFulfillRequestParams{
+		RequestId:       requestId,
+		ResponseCode:    code,
+		ResponseHeaders: headers,
+		Body:            base64.StdEncoding.EncodeToString(body),
+	}
+}
+
 type RequestPattern struct {
 	ResourceType string `json:"resourceType"`
 }
@@ -41,24 +49,24 @@ type ChromeRequest struct {
 }
 
 func (c *ChromeRequest) ToHTTPRequest() (*http.Request, error) {
-    url, err := url.Parse(c.URL)
-    if err != nil {
-        return &http.Request{}, err
-    }
-    
+	url, err := url.Parse(c.URL)
+	if err != nil {
+		return &http.Request{}, err
+	}
+
 	c.Headers["Accept-Encoding"] = "gzip"
 	c.Headers["Accept"] = "*/*"
 
-    req, err := http.NewRequest(c.Method, url.String(),
-        bytes.NewBuffer([]byte(c.PostData)))
-    if err != nil {
-        return &http.Request{}, err
-    }
+	req, err := http.NewRequest(c.Method, url.String(),
+		bytes.NewBuffer([]byte(c.PostData)))
+	if err != nil {
+		return &http.Request{}, err
+	}
 
-    for key, value := range c.Headers {
-        req.Header.Add(key, value)
-    }
-    return req, nil
+	for key, value := range c.Headers {
+		req.Header.Add(key, value)
+	}
+	return req, nil
 }
 
 type RequestPausedResponse struct {
@@ -163,8 +171,8 @@ func NewChromeClient(remoteDebuggingUrl string) (ChromeClient, error) {
 
 	dialer := websocket.Dialer{
 		WriteBufferSize: 33554432, // this is fucking bug in gorilla/websocket,
-                                   // if length of sending data less that
-                                   // writeBufferSize then connection is lost
+		// if length of sending data less that
+		// writeBufferSize then connection is lost
 	}
 
 	ws, _, err := dialer.Dial(ws_url, nil)
@@ -176,5 +184,5 @@ func NewChromeClient(remoteDebuggingUrl string) (ChromeClient, error) {
 		ID: 1000,
 	}
 	return chromeClient, nil
-    
+
 }
