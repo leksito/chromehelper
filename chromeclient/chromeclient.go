@@ -7,6 +7,7 @@ import "net/http"
 import "encoding/base64"
 import "net/url"
 import "bytes"
+import "log"
 
 type Message struct {
 	ID     int         `json:"id"`
@@ -110,10 +111,11 @@ func (c *ChromeClient) FetchEnable() error {
 		return err
 	}
 
-	_, _, err = c.Ws.ReadMessage()
+    _, p, err := c.Ws.ReadMessage()
 	if err != nil {
 		return err
 	}
+    log.Println(p)
 	return nil
 }
 
