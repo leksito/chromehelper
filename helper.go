@@ -10,12 +10,26 @@ import "log"
 import "net/url"
 import "strings"
 import "compress/gzip"
-// import "crypto/tls"
 import "os"
 import "chromehelper/chromeclient"
-// import "encoding/base65"
+import "regexp"
+
+
+
+func prepareCookies(cookies string) string {
+    log.Println(cookies)
+    re := regexp.MustCompile(`(isg|[; ]l)=[A-Za-z0-9\-_]+`)
+    cookies = re.ReplaceAllString(cookies, "")
+    log.Println(cookies)
+    return cookies
+}
 
 func doRequest(request *http.Request, client *http.Client) (int, []map[string]string, []byte, error) {
+
+    _, ok := request.Header["Cookie"]
+    if ok == true {
+        request.Header["Cookie"][0] = prepareCookies(request.Header["Cookie"][0])
+    }
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -85,7 +99,7 @@ func ProxyFunc(request *http.Request) (*url.URL, error) {
 	} else {
 		delete(request.Header, "__proxy__")
 	}
-	proxyURL, err := url.Parse(proxyStr[0])
+	proxyURL, err := url.Parse("//" + proxyStr[0])
 	if err != nil {
 		log.Println(err)
 	}
@@ -98,9 +112,9 @@ func newHttpClient() *http.Client {
 			// handle redirects, if there is it then do not do following location
 			return http.ErrUseLastResponse
 		},
-        Transport: &http.Transport {
-            Proxy: ProxyFunc,
-        },
+		Transport: &http.Transport{
+			Proxy: ProxyFunc,
+		},
 	}
 }
 

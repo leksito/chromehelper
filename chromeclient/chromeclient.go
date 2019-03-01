@@ -115,7 +115,7 @@ func (c *ChromeClient) FetchEnable() error {
 	if err != nil {
 		return err
 	}
-    log.Println(p)
+    log.Println(string(p))
 	return nil
 }
 
