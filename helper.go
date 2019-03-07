@@ -15,13 +15,10 @@ import "chromehelper/chromeclient"
 import "regexp"
 
 
+var Re = regexp.MustCompile(`(; isg|; l)=[A-Za-z0-9\-_\.]+`)
 
 func prepareCookies(cookies string) string {
-    log.Println(cookies)
-    re := regexp.MustCompile(`(isg|[; ]l)=[A-Za-z0-9\-_]+`)
-    cookies = re.ReplaceAllString(cookies, "")
-    log.Println(cookies)
-    return cookies
+    return Re.ReplaceAllString(cookies, "")
 }
 
 func doRequest(request *http.Request, client *http.Client) (int, []map[string]string, []byte, error) {
@@ -60,10 +57,9 @@ func doRequest(request *http.Request, client *http.Client) (int, []map[string]st
 
 	body, err := ioutil.ReadAll(reader)
 
-	dump, _ := httputil.DumpRequest(request, true)
-	fmt.Println(string(dump))
-	dump, _ = httputil.DumpResponse(response, false)
-	fmt.Println(string(dump))
+	dump_request, _ := httputil.DumpRequest(request, true)
+    dump_response, _ := httputil.DumpResponse(response, false)
+	fmt.Println("\n\n" + string(dump_request) + "\n\n" + string(dump_response) + "\n\n")
 
 	return code, responseHeaders, body, nil
 }
