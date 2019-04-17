@@ -14,8 +14,20 @@ import "crypto/tls"
 import "os"
 import "chromehelper/chromeclient"
 import "encoding/base64"
+import "regexp"
+
+var Re = regexp.MustCompile(`(; isg|; l)=[A-Za-z0-9\-_\.]+`)
+
+func prepareCookies(cookies string) string {
+    return Re.ReplaceAllString(cookies, "")
+}
 
 func doRequest(request *http.Request, client *http.Client) (int, []map[string]string, []byte, error) {
+
+    _, ok := request.Header["Cookie"]
+    if ok == true {
+        request.Header["Cookie"][0] = prepareCookies(request.Header["Cookie"][0])
+    }
 
 	response, err := client.Do(request)
 	if err != nil {
@@ -82,10 +94,6 @@ func Poller(in <-chan chromeclient.RequestPausedResponse, out chan<- interface{}
 			delete(clients, "__proxy__")
 		}
 
-		for key, value := range clients {
-			log.Printf("%s: %s\n", key, value)
-		}
-
 		client, ok := clients[proxy]
 		if ok == false {
 			client = createHttpClient(proxy)
@@ -111,6 +119,20 @@ func Sender(out <-chan interface{}, chromeClient chromeclient.ChromeClient) {
     }
 }
 
+func ProxyFunc(request *http.Request) (*url.URL, error) {
+	proxyStr, ok := request.Header["__proxy__"]
+	if ok == false {
+		return nil, nil
+	} else {
+		delete(request.Header, "__proxy__")
+	}
+	proxyURL, err := url.Parse("//" + proxyStr[0])
+	if err != nil {
+		log.Println(err)
+	}
+	return proxyURL, err
+}
+
 func createHttpClient(proxyStr string) *http.Client {
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -118,13 +140,13 @@ func createHttpClient(proxyStr string) *http.Client {
 		},
 	}
 	if proxyStr != "" {
-		proxyURL, err := url.Parse(proxyStr)
+		_, err := url.Parse(proxyStr)
 		if err != nil {
 			log.Println(err)
 		}
 
 		transport := &http.Transport{
-			Proxy:           http.ProxyURL(proxyURL),
+			Proxy:           ProxyFunc,
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		}
 		client.Transport = transport
