@@ -5,15 +5,16 @@ import "fmt"
 import "io"
 import "io/ioutil"
 import "net/http/httputil"
-import "net/http"
 import "log"
+import "net/http"
 import "net/url"
 import "strings"
 import "compress/gzip"
+import "crypto/tls"
 import "os"
 import "chromehelper/chromeclient"
+import "encoding/base64"
 import "regexp"
-
 
 var Re = regexp.MustCompile(`(; isg|; l)=[A-Za-z0-9\-_\.]+`)
 
@@ -57,35 +58,65 @@ func doRequest(request *http.Request, client *http.Client) (int, []map[string]st
 
 	body, err := ioutil.ReadAll(reader)
 
-	dump_request, _ := httputil.DumpRequest(request, true)
-    dump_response, _ := httputil.DumpResponse(response, false)
-	fmt.Println("\n\n" + string(dump_request) + "\n\n" + string(dump_response) + "\n\n")
+	dump, _ := httputil.DumpRequest(request, true)
+	fmt.Println(string(dump))
+	dump, _ = httputil.DumpResponse(response, false)
+	fmt.Println(string(dump))
 
 	return code, responseHeaders, body, nil
 }
 
+func handleRequest(id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) (chromeclient.FetchFulfillRequestParams, error) {
+    req, _ := request.ToHTTPRequest()
+	code, headers, body, err := doRequest(req, client)
+	if err != nil {
+		return chromeclient.FetchFulfillRequestParams{}, err
+	}
+    params := chromeclient.FetchFulfillRequestParams{
+        RequestId:       requestId,
+        ResponseCode:    code,
+        ResponseHeaders: headers,
+        Body:            base64.StdEncoding.EncodeToString(body),
+    }
+    return params, err
+}
+
 func Poller(in <-chan chromeclient.RequestPausedResponse, out chan<- interface{}, chromeClient chromeclient.ChromeClient) {
-	client := newHttpClient()
+	clients := make(map[string]*http.Client)
 	for response := range in {
 		chromeClient.ID += 1
-		request, _ := response.Params.Request.ToHTTPRequest()
+		request := response.Params.Request
 
-		go func(out chan<- interface{}, id int, requestId string, request *http.Request, client *http.Client) {
-			code, headers, body, err := doRequest(request, client)
-			if err != nil {
-				log.Println(err)
-			}
-			out <- chromeclient.NewFetchFulfillRequestParams(requestId, code, headers, body)
-		}(out, chromeClient.ID, response.Params.RequestID, request, client)
+		proxy, ok := request.Headers["__proxy__"]
+		if ok == false {
+			proxy = ""
+		} else {
+			delete(clients, "__proxy__")
+		}
+
+		client, ok := clients[proxy]
+		if ok == false {
+			client = createHttpClient(proxy)
+			clients[proxy] = client
+		}
+		go func(out chan<- interface{}, id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) {
+            params, err := handleRequest(id, requestId, request, client)
+            if err != nil {
+                log.Println(err)
+            } else {
+                out <- params
+            }
+
+        }(out, chromeClient.ID, response.Params.RequestID, request, client)
 	}
 }
 
 func Sender(out <-chan interface{}, chromeClient chromeclient.ChromeClient) {
-	for params := range out {
-		if err := chromeClient.Send(params); err != nil {
-			log.Println(err)
-		}
-	}
+    for params := range out {
+        if err := chromeClient.Send(params); err != nil {
+            log.Println(err)
+        }
+    }
 }
 
 func ProxyFunc(request *http.Request) (*url.URL, error) {
@@ -102,16 +133,27 @@ func ProxyFunc(request *http.Request) (*url.URL, error) {
 	return proxyURL, err
 }
 
-func newHttpClient() *http.Client {
-	return &http.Client{
+func createHttpClient(proxyStr string) *http.Client {
+	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// handle redirects, if there is it then do not do following location
 			return http.ErrUseLastResponse
 		},
-		Transport: &http.Transport{
-			Proxy: ProxyFunc,
-		},
+        Jar: nil,
 	}
+	if proxyStr != "" {
+		_, err := url.Parse(proxyStr)
+		if err != nil {
+			log.Println(err)
+		}
+
+		transport := &http.Transport{
+			Proxy:           ProxyFunc,
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+            MaxIdleConnsPerHost: 100,
+		}
+		client.Transport = transport
+	}
+	return client
 }
 
 func main() {
@@ -131,11 +173,11 @@ func main() {
 	pending := make(chan chromeclient.RequestPausedResponse)
 	defer close(pending)
 
-	complete := make(chan interface{})
-	defer close(complete)
+    complete := make(chan interface{})
+    defer close(complete)
 
 	go Poller(pending, complete, chromeClient)
-	go Sender(complete, chromeClient)
+    go Sender(complete, chromeClient)
 
 	for {
 		_, response_json, err := chromeClient.Ws.ReadMessage()
