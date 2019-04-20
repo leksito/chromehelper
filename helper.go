@@ -138,6 +138,7 @@ func createHttpClient(proxyStr string) *http.Client {
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
+        Jar: nil,
 	}
 	if proxyStr != "" {
 		_, err := url.Parse(proxyStr)
@@ -148,6 +149,7 @@ func createHttpClient(proxyStr string) *http.Client {
 		transport := &http.Transport{
 			Proxy:           ProxyFunc,
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+            MaxIdleConnsPerHost: 100,
 		}
 		client.Transport = transport
 	}
