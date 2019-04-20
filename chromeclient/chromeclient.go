@@ -1,13 +1,16 @@
 package chromeclient
 
-import "encoding/json"
-import "github.com/fasthttp/websocket"
-import "io/ioutil"
-import "net/http"
-import "encoding/base64"
-import "net/url"
-import "bytes"
-import "log"
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"net/url"
+
+	"github.com/fasthttp/websocket"
+)
 
 type Message struct {
 	ID     int         `json:"id"`
@@ -20,15 +23,15 @@ type FetchEnableParams struct {
 }
 
 type FetchFulfillRequestParams struct {
-	RequestId       string              `json:"requestId"`
+	RequestID       string              `json:"requestId"`
 	ResponseCode    int                 `json:"responseCode"`
 	ResponseHeaders []map[string]string `json:"responseHeaders"`
 	Body            string              `json:"body"`
 }
 
-func NewFetchFulfillRequestParams(requestId string, code int, headers []map[string]string, body []byte) FetchFulfillRequestParams {
+func NewFetchFulfillRequestParams(requestID string, code int, headers []map[string]string, body []byte) FetchFulfillRequestParams {
 	return FetchFulfillRequestParams{
-		RequestId:       requestId,
+		RequestID:       requestID,
 		ResponseCode:    code,
 		ResponseHeaders: headers,
 		Body:            base64.StdEncoding.EncodeToString(body),
@@ -111,16 +114,16 @@ func (c *ChromeClient) FetchEnable() error {
 		return err
 	}
 
-    _, p, err := c.Ws.ReadMessage()
+	_, p, err := c.Ws.ReadMessage()
 	if err != nil {
 		return err
 	}
-    log.Println(string(p))
+	log.Println(string(p))
 	return nil
 }
 
 func (c *ChromeClient) Send(params interface{}) error {
-	c.ID += 1
+	c.ID++
 	msg := Message{
 		ID:     c.ID,
 		Method: "Fetch.fulfillRequest",
@@ -134,13 +137,13 @@ func (c *ChromeClient) Send(params interface{}) error {
 	return nil
 }
 
-func (c *ChromeClient) FulfillRequest(requestId string, code int, headers []map[string]string, body []byte) error {
-	c.ID += 1
+func (c *ChromeClient) FulfillRequest(requestID string, code int, headers []map[string]string, body []byte) error {
+	c.ID++
 	msg := Message{
 		ID:     c.ID,
 		Method: "Fetch.fulfillRequest",
 		Params: FetchFulfillRequestParams{
-			RequestId:       requestId,
+			RequestID:       requestID,
 			ResponseCode:    code,
 			ResponseHeaders: headers,
 			Body:            base64.StdEncoding.EncodeToString(body),
@@ -157,9 +160,9 @@ func (c *ChromeClient) Close() {
 	c.Ws.Close()
 }
 
-func NewChromeClient(remoteDebuggingUrl string) (ChromeClient, error) {
+func NewChromeClient(remoteDebuggingURL string) (ChromeClient, error) {
 	var client http.Client
-	resp, err := client.Get(remoteDebuggingUrl + "/json/version")
+	resp, err := client.Get(remoteDebuggingURL + "/json/version")
 	if err != nil {
 		return ChromeClient{}, err
 	}
@@ -169,7 +172,7 @@ func NewChromeClient(remoteDebuggingUrl string) (ChromeClient, error) {
 
 	var version map[string]string
 	json.Unmarshal(bodyBytes, &version)
-	ws_url := version["webSocketDebuggerUrl"]
+	wsURL := version["webSocketDebuggerUrl"]
 
 	dialer := websocket.Dialer{
 		WriteBufferSize: 33554432, // this is fucking bug in gorilla/websocket,
@@ -177,7 +180,7 @@ func NewChromeClient(remoteDebuggingUrl string) (ChromeClient, error) {
 		// writeBufferSize then connection is lost
 	}
 
-	ws, _, err := dialer.Dial(ws_url, nil)
+	ws, _, err := dialer.Dial(wsURL, nil)
 	if err != nil {
 		return ChromeClient{}, err
 	}
