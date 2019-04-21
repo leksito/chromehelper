@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 
@@ -84,21 +84,20 @@ type RequestPausedResponse struct {
 }
 
 type ChromeClient struct {
-	Ws *websocket.Conn
-	ID int
+	Ws       *websocket.Conn
+	ID       int
+	Version  map[string]string
+	patterns []string
 }
 
 func (c *ChromeClient) FetchEnable() error {
-	var patterns = []RequestPattern{
-		RequestPattern{
-			ResourceType: "Document",
-		},
-		RequestPattern{
-			ResourceType: "XHR",
-		},
-		RequestPattern{
-			ResourceType: "Script",
-		},
+	var patterns = []RequestPattern{}
+
+	for _, pattern := range c.patterns {
+		requestPattern := RequestPattern{
+			ResourceType: pattern,
+		}
+		patterns = append(patterns, requestPattern)
 	}
 
 	msg := Message{
@@ -114,11 +113,10 @@ func (c *ChromeClient) FetchEnable() error {
 		return err
 	}
 
-	_, p, err := c.Ws.ReadMessage()
+	_, _, err = c.Ws.ReadMessage()
 	if err != nil {
 		return err
 	}
-	log.Println(string(p))
 	return nil
 }
 
@@ -160,8 +158,9 @@ func (c *ChromeClient) Close() {
 	c.Ws.Close()
 }
 
-func NewChromeClient(remoteDebuggingURL string) (ChromeClient, error) {
+func NewChromeClient(host *string, port *string, patterns []string) (ChromeClient, error) {
 	var client http.Client
+	remoteDebuggingURL := fmt.Sprintf("http://%s:%s", *host, *port)
 	resp, err := client.Get(remoteDebuggingURL + "/json/version")
 	if err != nil {
 		return ChromeClient{}, err
@@ -185,8 +184,10 @@ func NewChromeClient(remoteDebuggingURL string) (ChromeClient, error) {
 		return ChromeClient{}, err
 	}
 	chromeClient := ChromeClient{
-		Ws: ws,
-		ID: 1000,
+		Ws:       ws,
+		ID:       1000,
+		Version:  version,
+		patterns: patterns,
 	}
 	return chromeClient, nil
 

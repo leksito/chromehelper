@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -159,17 +160,26 @@ func createHTTPClient(proxyStr string) *http.Client {
 
 func main() {
 
-	chromeClient, err := chromeclient.NewChromeClient("http://127.0.0.1:9222")
+	port := flag.String("port", "9222", "Chrome browser remote port. Default - `9222`")
+	host := flag.String("host", "127.0.0.1", "Chrome browser remote host. Default - `http://127.0.0.1`")
+	flag.Parse()
+
+	patterns := flag.Args()
+
+	chromeClient, err := chromeclient.NewChromeClient(host, port, patterns)
 	if err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
 	defer chromeClient.Ws.Close()
 
+	log.Println("Connected to " + chromeClient.Version["Browser"])
+
 	if err = chromeClient.FetchEnable(); err != nil {
 		log.Println(err)
 		os.Exit(1)
 	}
+	log.Println("Fetch enbled")
 
 	pending := make(chan chromeclient.RequestPausedResponse)
 	defer close(pending)
