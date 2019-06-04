@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+    "log"
 
 	"github.com/fasthttp/websocket"
 )
@@ -113,10 +114,11 @@ func (c *ChromeClient) FetchEnable() error {
 		return err
 	}
 
-	_, _, err = c.Ws.ReadMessage()
+    _, p, err := c.Ws.ReadMessage()
 	if err != nil {
 		return err
 	}
+    log.Println(string(p))
 	return nil
 }
 

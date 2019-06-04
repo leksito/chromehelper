@@ -17,6 +17,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+    "runtime"
+    "time"
 )
 
 var re = regexp.MustCompile(`(; isg|; l)=[A-Za-z0-9\-_\.]+`)
@@ -26,6 +28,8 @@ func prepareCookies(cookies string) string {
 }
 
 func doRequest(request *http.Request, client *http.Client) (int, []map[string]string, []byte, error) {
+    dump, _ := httputil.DumpRequest(request, true)
+	fmt.Println(string(dump))
 
 	_, ok := request.Header["Cookie"]
 	if ok == true {
@@ -61,11 +65,6 @@ func doRequest(request *http.Request, client *http.Client) (int, []map[string]st
 
 	body, err := ioutil.ReadAll(reader)
 
-	dump, _ := httputil.DumpRequest(request, true)
-	fmt.Println(string(dump))
-	dump, _ = httputil.DumpResponse(response, false)
-	fmt.Println(string(dump))
-
 	return code, responseHeaders, body, nil
 }
 
@@ -85,23 +84,18 @@ func handleRequest(id int, requestID string, request chromeclient.ChromeRequest,
 }
 
 func poller(in <-chan chromeclient.RequestPausedResponse, out chan<- interface{}, chromeClient chromeclient.ChromeClient) {
-	clients := make(map[string]*http.Client)
+	// clients := make(map[string]*http.Client)
+    client := createHTTPClient()
+
 	for response := range in {
 		chromeClient.ID++
 		request := response.Params.Request
 
-		proxy, ok := request.Headers["__proxy__"]
+		_, ok := request.Headers["__proxy__"]
 		if ok == false {
-			proxy = ""
-		} else {
-			delete(clients, "__proxy__")
+			_ = ""
 		}
 
-		client, ok := clients[proxy]
-		if ok == false {
-			client = createHTTPClient(proxy)
-			clients[proxy] = client
-		}
 		go func(out chan<- interface{}, id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) {
 			params, err := handleRequest(id, requestId, request, client)
 			if err != nil {
@@ -127,7 +121,12 @@ func proxyFunc(request *http.Request) (*url.URL, error) {
 	if ok == false {
 		return nil, nil
 	}
-	delete(request.Header, "__proxy__")
+    delete(request.Header, "__proxy__")
+
+    fmt.Println(proxyStr)
+    dump, _ := httputil.DumpRequest(request, true)
+	fmt.Println(string(dump))
+
 	proxyURL, err := url.Parse("//" + proxyStr[0])
 	if err != nil {
 		log.Println(err)
@@ -135,30 +134,34 @@ func proxyFunc(request *http.Request) (*url.URL, error) {
 	return proxyURL, err
 }
 
-func createHTTPClient(proxyStr string) *http.Client {
+func createHTTPClient() *http.Client {
+    defaultRoundTripper := http.DefaultTransport
+    defaultTransportPtr, ok := defaultRoundTripper.(*http.Transport)
+    if !ok {
+        panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport"))
+    }
+    defaultTransport := *defaultTransportPtr
+    defaultTransport.MaxIdleConns = 1000
+    defaultTransport.MaxIdleConnsPerHost = 1000
+    // defaultTransport.Proxy = proxyFunc
+    defaultTransport.TLSClientConfig = &tls.Config{
+        InsecureSkipVerify: true,
+    }
+
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
+        Timeout: time.Second * 60,
 		Jar: nil,
-	}
-	if proxyStr != "" {
-		_, err := url.Parse(proxyStr)
-		if err != nil {
-			log.Println(err)
-		}
-
-		transport := &http.Transport{
-			Proxy:               proxyFunc,
-			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
-			MaxIdleConnsPerHost: 100,
-		}
-		client.Transport = transport
+        Transport: &defaultTransport,
 	}
 	return client
 }
 
 func main() {
+
+    fmt.Println(runtime.GOMAXPROCS(0))
 
 	port := flag.String("port", "9222", "Chrome browser remote port. Default - `9222`")
 	host := flag.String("host", "127.0.0.1", "Chrome browser remote host. Default - `http://127.0.0.1`")
