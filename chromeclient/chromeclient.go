@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
-    "log"
 
 	"github.com/fasthttp/websocket"
 )
@@ -114,11 +114,11 @@ func (c *ChromeClient) FetchEnable() error {
 		return err
 	}
 
-    _, p, err := c.Ws.ReadMessage()
+	_, p, err := c.Ws.ReadMessage()
 	if err != nil {
 		return err
 	}
-    log.Println(string(p))
+	log.Println(string(p))
 	return nil
 }
 

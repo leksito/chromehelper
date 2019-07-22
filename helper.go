@@ -16,9 +16,9 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"runtime"
 	"strings"
-    "runtime"
-    "time"
+	"time"
 )
 
 var re = regexp.MustCompile(`(; isg|; l)=[A-Za-z0-9\-_\.]+`)
@@ -28,7 +28,7 @@ func prepareCookies(cookies string) string {
 }
 
 func doRequest(request *http.Request, client *http.Client) (int, []map[string]string, []byte, error) {
-    dump, _ := httputil.DumpRequest(request, true)
+	dump, _ := httputil.DumpRequest(request, true)
 	fmt.Println(string(dump))
 
 	_, ok := request.Header["Cookie"]
@@ -85,7 +85,7 @@ func handleRequest(id int, requestID string, request chromeclient.ChromeRequest,
 
 func poller(in <-chan chromeclient.RequestPausedResponse, out chan<- interface{}, chromeClient chromeclient.ChromeClient) {
 	// clients := make(map[string]*http.Client)
-    client := createHTTPClient()
+	client := createHTTPClient()
 
 	for response := range in {
 		chromeClient.ID++
@@ -121,10 +121,10 @@ func proxyFunc(request *http.Request) (*url.URL, error) {
 	if ok == false {
 		return nil, nil
 	}
-    delete(request.Header, "__proxy__")
+	delete(request.Header, "__proxy__")
 
-    fmt.Println(proxyStr)
-    dump, _ := httputil.DumpRequest(request, true)
+	fmt.Println(proxyStr)
+	dump, _ := httputil.DumpRequest(request, true)
 	fmt.Println(string(dump))
 
 	proxyURL, err := url.Parse("//" + proxyStr[0])
@@ -135,33 +135,33 @@ func proxyFunc(request *http.Request) (*url.URL, error) {
 }
 
 func createHTTPClient() *http.Client {
-    defaultRoundTripper := http.DefaultTransport
-    defaultTransportPtr, ok := defaultRoundTripper.(*http.Transport)
-    if !ok {
-        panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport"))
-    }
-    defaultTransport := *defaultTransportPtr
-    defaultTransport.MaxIdleConns = 1000
-    defaultTransport.MaxIdleConnsPerHost = 1000
-    // defaultTransport.Proxy = proxyFunc
-    defaultTransport.TLSClientConfig = &tls.Config{
-        InsecureSkipVerify: true,
-    }
+	defaultRoundTripper := http.DefaultTransport
+	defaultTransportPtr, ok := defaultRoundTripper.(*http.Transport)
+	if !ok {
+		panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport"))
+	}
+	defaultTransport := *defaultTransportPtr
+	defaultTransport.MaxIdleConns = 1000
+	defaultTransport.MaxIdleConnsPerHost = 1000
+	// defaultTransport.Proxy = proxyFunc
+	defaultTransport.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
 
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-        Timeout: time.Second * 60,
-		Jar: nil,
-        Transport: &defaultTransport,
+		Timeout:   time.Second * 60,
+		Jar:       nil,
+		Transport: &defaultTransport,
 	}
 	return client
 }
 
 func main() {
 
-    fmt.Println(runtime.GOMAXPROCS(0))
+	fmt.Println(runtime.GOMAXPROCS(0))
 
 	port := flag.String("port", "9222", "Chrome browser remote port. Default - `9222`")
 	host := flag.String("host", "127.0.0.1", "Chrome browser remote host. Default - `http://127.0.0.1`")
