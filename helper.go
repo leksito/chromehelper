@@ -16,7 +16,6 @@ import (
 	"net/url"
 	"os"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -91,10 +90,10 @@ func poller(in <-chan chromeclient.RequestPausedResponse, out chan<- interface{}
 		chromeClient.ID++
 		request := response.Params.Request
 
-		_, ok := request.Headers["__proxy__"]
-		if ok == false {
-			_ = ""
-		}
+		// _, ok := request.Headers["__proxy__"]
+		// if ok == false {
+		// 	_ = ""
+		// }
 
 		go func(out chan<- interface{}, id int, requestId string, request chromeclient.ChromeRequest, client *http.Client) {
 			params, err := handleRequest(id, requestId, request, client)
@@ -143,7 +142,6 @@ func createHTTPClient() *http.Client {
 	defaultTransport := *defaultTransportPtr
 	defaultTransport.MaxIdleConns = 1000
 	defaultTransport.MaxIdleConnsPerHost = 1000
-	// defaultTransport.Proxy = proxyFunc
 	defaultTransport.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
 	}
@@ -160,8 +158,6 @@ func createHTTPClient() *http.Client {
 }
 
 func main() {
-
-	fmt.Println(runtime.GOMAXPROCS(0))
 
 	port := flag.String("port", "9222", "Chrome browser remote port. Default - `9222`")
 	host := flag.String("host", "127.0.0.1", "Chrome browser remote host. Default - `http://127.0.0.1`")
